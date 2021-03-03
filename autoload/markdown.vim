@@ -7,11 +7,12 @@ function! markdown#format(text, last_line, state)
   " Initialize the state variable with defaults, if missing.
   let l:state = extend(a:state, {'comment':0, 'code':0, 'bullet_nums':[0], 'indent':0, 'table':[]}, 'keep')
   let new_text = []
+  let wwidth = 2 * winwidth(0) / 3
 
 
   " Finish a table. We don't know it's done until processing the next line.
   if a:text !~? '\s*|\([^|]\+|\)\+$' && l:state.table != []
-    let new_text += s:FinishTable(l:state.table)
+    let new_text += s:FinishTable(l:state.table, wwidth)
     let l:state.table = []
   endif
 
@@ -19,7 +20,7 @@ function! markdown#format(text, last_line, state)
   " Code Blocks - Indent. Precede and follow with horzontal line
   if l:state.comment == 0 && a:text =~? '^\s*```'
     let l:state.code = !l:state.code
-    let new_text += ['    '.repeat(l:state.code ? '▄' : '▀', winwidth(0)-8)]
+    let new_text += ['    '.repeat(l:state.code ? '▄' : '▀', wwidth-8)]
 
   " Avoid formatting inside a code block by having this at the top
   elseif l:state.code
@@ -88,19 +89,19 @@ function! markdown#format(text, last_line, state)
   elseif a:text =~? '^#\{1,3}[^#]' && g:presenting_figlets && executable('figlet')
     let level = strchars(matchstr(a:text, '^#\+'))
     let font = level == 1 ? g:presenting_font_large : g:presenting_font_small
-    let figlet = split(system('figlet -w '.winwidth(0).' -f '.font.' '.shellescape(substitute(a:text,'^#\+s*','',''))), "\n")
-    let new_text += s:Center(figlet, '«h'.level.'»')
+    let figlet = split(system('figlet -w '.wwidth.' -f '.font.' '.shellescape(substitute(a:text,'^#\+s*','',''))), "\n")
+    let new_text += s:Center(figlet, '«h'.level.'»', wwidth)
 
   " Headings - Centered Normal Text for ####
   elseif a:text =~? '^####[^#]'
-    let new_text += s:Center([substitute(a:text,'^####\s*','','')], '«h4»')
+    let new_text += s:Center([substitute(a:text,'^####\s*','','')], '«h4»', wwidth)
 
 
   " Quote Blocks - Wrap and Left Border
   elseif a:text =~? '^\s*>'
     let l:text = substitute(a:text, '^\s*>\s*', '', '')
-    while strchars(l:text) > winwidth(0) - 8
-      let s = strridx(strcharpart(l:text,0,winwidth(0)-10),' ')
+    while strchars(l:text) > wwidth - 8
+      let s = strridx(strcharpart(l:text,0,wwidth-10),' ')
       let new_text += ['  ▐ '.strcharpart(l:text,0,s)]
       let l:text = strcharpart(l:text,s+1)
     endwhile
@@ -115,7 +116,7 @@ function! markdown#format(text, last_line, state)
 
   " Finish the table if it's the last thing on the slide.
   if a:last_line && l:state.table != []
-    let new_text += s:FinishTable(l:state.table)
+    let new_text += s:FinishTable(l:state.table, wwidth)
     let l:state.table = []
   endif
 
@@ -127,15 +128,15 @@ function! markdown#format(text, last_line, state)
   return [new_text, l:state]
 endfunction
 
-function! s:Center(text, prefix)
+function! s:Center(text, prefix, wwidth)
   let max_width = max(map(copy(a:text), 'strchars(v:val)'))
-  let centered = map(copy(a:text), 'a:prefix.repeat(" ",(winwidth(0)-max_width)/2).v:val')
+  let centered = map(copy(a:text), 'a:prefix.repeat(" ",('.a:wwidth.'-max_width)/2).v:val')
   return centered
 endfunction
 
-function! s:FinishTable(text)
+function! s:FinishTable(text, wwidth)
   let l:text = extend(a:text, [ substitute( substitute( substitute(a:text[0], '┏', '┗', ''), '┓', '┛', ''), '┳', '┻', 'g') ] )
-  let l:text = s:Center(l:text, '«tr»')
+  let l:text = s:Center(l:text, '«tr»', a:wwidth)
   let l:text[1] = substitute(l:text[1], '^«tr»', '«th»', '')
   return l:text
 endfunction
